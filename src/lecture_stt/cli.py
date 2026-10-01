@@ -3,6 +3,7 @@
 import argparse
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -109,10 +110,43 @@ def cmd_scan(args: argparse.Namespace) -> None:
     print("转写稿会放在每门课文件夹下的 <课程>_stt/ 里。加 -v 可以看到具体路径。")
 
 
+def _time_limit(audio_seconds: float) -> float:
+    """一个文件最多允许跑多久：至少 20 分钟；长文件按“不能慢于 2 倍实时”算。"""
+    return max(1200.0, audio_seconds / 2)
+
+
+def _raise_interrupt(signum, frame):
+    raise KeyboardInterrupt
+
+
+def cmd_worker(args: argparse.Namespace) -> None:
+    """只转写一个文件。由 run 以子进程方式调用，不直接给人用。"""
+    store = Store()
+    job = store.get(args.job_id)
+    media = Path(job["path"])
+    output = Path(job["output_path"])
+    language = None if args.language == "auto" else args.language
+    transcriber = default_transcriber(args.model)
+
+    if args.preview_minutes:
+        transcript = transcriber.transcribe(
+            media, language=language, clip_seconds=args.preview_minutes * 60
+        )
+        output = output.with_suffix(".preview.md")
+    else:
+        transcript = transcriber.transcribe(media, language=language)
+        store.save_segments(job["id"], transcript)
+    write_atomic(output, render_markdown(
+        transcript, source=media, course=job["course"],
+        duration=job["duration"], preview_minutes=args.preview_minutes,
+    ))
+
+
 def cmd_run(args: argparse.Namespace) -> None:
     root = Path(args.path).expanduser().resolve()
-    language = None if args.language == "auto" else args.language
     store = Store()
+    # 被 kill 时也按 Ctrl-C 处理，这样正在跑的子进程会被一起收掉
+    signal.signal(signal.SIGTERM, _raise_interrupt)
 
     with _single_run_lock():
         store.reset_running()
@@ -128,46 +162,55 @@ def cmd_run(args: argparse.Namespace) -> None:
             return
 
         total = sum(j["duration"] or 0 for j in jobs)
-        transcriber = default_transcriber(args.model)
-        print(f"准备转写 {len(jobs)} 个文件，音频总长 {_hours(total)}。模型：{transcriber.name}")
+        model_name = default_transcriber(args.model).name
+        print(f"准备转写 {len(jobs)} 个文件，音频总长 {_hours(total)}。模型：{model_name}", flush=True)
 
         with _keep_awake():
             for index, job in enumerate(jobs, 1):
                 media = Path(job["path"])
                 output = Path(job["output_path"])
-                print(f"\n[{index}/{len(jobs)}] {job['course']} / {media.name}")
+                if args.preview_minutes:
+                    output = output.with_suffix(".preview.md")
+                audio = args.preview_minutes * 60 if args.preview_minutes else (job["duration"] or 0)
+                print(f"\n[{index}/{len(jobs)}] {job['course']} / {media.name}", flush=True)
+
+                # 每个文件单独开一个子进程来转写：
+                # 1. 跑完进程退出，内存彻底还给系统，不会一个个文件越积越多；
+                # 2. 卡住时可以从外面超时杀掉，换下一个，不会整批停在那里。
+                command = [sys.executable, "-m", "lecture_stt.cli", "_one", str(job["id"]),
+                           "--language", args.language]
+                if args.model:
+                    command += ["--model", args.model]
+                if args.preview_minutes:
+                    command += ["--preview-minutes", str(args.preview_minutes)]
+                limit = None if args.no_timeout else _time_limit(job["duration"] or 0)
+
                 started = time.monotonic()
+                error = None
+                if not args.preview_minutes:
+                    store.set_status(job["id"], "running")
                 try:
-                    if args.preview_minutes:
-                        transcript = transcriber.transcribe(
-                            media, language=language, clip_seconds=args.preview_minutes * 60
-                        )
-                        output = output.with_suffix(".preview.md")
-                    else:
-                        store.set_status(job["id"], "running")
-                        transcript = transcriber.transcribe(media, language=language)
-                        store.save_segments(job["id"], transcript)
-                    write_atomic(output, render_markdown(
-                        transcript, source=media, course=job["course"],
-                        duration=job["duration"], preview_minutes=args.preview_minutes,
-                    ))
+                    subprocess.run(command, check=True, timeout=limit)
                 except KeyboardInterrupt:
                     if not args.preview_minutes:
                         store.set_status(job["id"], "pending")
                     print("\n已中断。下次运行会从这个文件重新开始。")
                     return
-                except Exception as exc:  # 一个文件坏了不该让整批停下
+                except subprocess.TimeoutExpired:
+                    error = f"超过 {limit / 60:.0f} 分钟没跑完，已跳过"
+                except subprocess.CalledProcessError as exc:
+                    error = f"转写进程异常退出（退出码 {exc.returncode}）"
+                if error:  # 一个文件坏了不该让整批停下
                     if not args.preview_minutes:
-                        store.set_status(job["id"], "failed", error=repr(exc))
-                    print(f"  失败：{exc!r}")
+                        store.set_status(job["id"], "failed", error=error)
+                    print(f"  失败：{error}", flush=True)
                     continue
 
                 elapsed = time.monotonic() - started
                 if not args.preview_minutes:
-                    store.mark_done(job["id"], transcriber.name, elapsed)
-                audio = args.preview_minutes * 60 if args.preview_minutes else (job["duration"] or 0)
+                    store.mark_done(job["id"], model_name, elapsed)
                 speed = f"，{audio / elapsed:.1f} 倍实时" if audio and elapsed else ""
-                print(f"  完成，用时 {format_time(elapsed)}{speed}\n  -> {output}")
+                print(f"  完成，用时 {format_time(elapsed)}{speed}\n  -> {output}", flush=True)
 
 
 def cmd_status(args: argparse.Namespace) -> None:
@@ -217,7 +260,15 @@ def main() -> None:
     run.add_argument("--language", default=DEFAULT_LANGUAGE, help="语言代码，auto 为自动识别（默认 en）")
     run.add_argument("--model", help="不填则按当前电脑自动选")
     run.add_argument("--retry-failed", action="store_true", help="把之前失败的也重跑")
+    run.add_argument("--no-timeout", action="store_true", help="不限制单个文件的用时（只用 CPU 跑时需要）")
     run.set_defaults(func=cmd_run)
+
+    worker = sub.add_parser("_one")  # 内部命令：run 用它在子进程里转写单个文件
+    worker.add_argument("job_id", type=int)
+    worker.add_argument("--preview-minutes", type=float)
+    worker.add_argument("--language", default=DEFAULT_LANGUAGE)
+    worker.add_argument("--model")
+    worker.set_defaults(func=cmd_worker)
 
     status = sub.add_parser("status", help="查看总体进度")
     status.set_defaults(func=cmd_status)

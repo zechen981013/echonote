@@ -78,6 +78,9 @@ class Store:
         ]
         return sorted(rows, key=lambda r: natural_key(Path(r["path"])))
 
+    def get(self, job_id: int) -> sqlite3.Row:
+        return self.db.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+
     def all_jobs(self) -> list[sqlite3.Row]:
         return self.db.execute("SELECT * FROM jobs").fetchall()
 
