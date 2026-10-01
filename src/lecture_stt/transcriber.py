@@ -46,9 +46,13 @@ class MlxWhisperTranscriber:
         self.name = model
 
     def download(self) -> str:
+        """返回模型在本机的文件夹。已经下载过就不联网：断网或代理出错时照样能转写。"""
         from huggingface_hub import snapshot_download
 
-        return snapshot_download(self.name)
+        try:
+            return snapshot_download(self.name, local_files_only=True)
+        except Exception:
+            return snapshot_download(self.name)
 
     def transcribe(
         self, media: Path, *, language: str | None, clip_seconds: float | None = None
@@ -58,7 +62,7 @@ class MlxWhisperTranscriber:
 
         result = mlx_whisper.transcribe(
             str(media),
-            path_or_hf_repo=self.name,
+            path_or_hf_repo=self.download(),
             language=language,  # None 表示自动识别
             # 不把上一段的文字喂给下一段：长录音里能避免模型陷入重复同一句话
             condition_on_previous_text=False,

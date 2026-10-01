@@ -165,6 +165,7 @@ def cmd_run(args: argparse.Namespace) -> None:
         model_name = default_transcriber(args.model).name
         print(f"准备转写 {len(jobs)} 个文件，音频总长 {_hours(total)}。模型：{model_name}", flush=True)
 
+        failures_in_a_row = 0
         with _keep_awake():
             for index, job in enumerate(jobs, 1):
                 media = Path(job["path"])
@@ -204,7 +205,12 @@ def cmd_run(args: argparse.Namespace) -> None:
                     if not args.preview_minutes:
                         store.set_status(job["id"], "failed", error=error)
                     print(f"  失败：{error}", flush=True)
+                    failures_in_a_row += 1
+                    if failures_in_a_row >= 3:  # 连着失败多半是环境出了问题，别把整批都标成失败
+                        print("\n连续 3 个文件失败，已停止。请查看上面的报错，修好后加 --retry-failed 重跑。")
+                        return
                     continue
+                failures_in_a_row = 0
 
                 elapsed = time.monotonic() - started
                 if not args.preview_minutes:
