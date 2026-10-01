@@ -1,0 +1,24 @@
+[project]
+name = "lecture-stt"
+version = "0.1.0"
+description = "递归扫描文件夹里的课程视频，用本地 Whisper 模型转写成 Markdown"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    # M 系列 Mac：MLX 版 Whisper
+    "mlx-whisper>=0.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    # Windows / Linux：faster-whisper，走 NVIDIA 显卡
+    "faster-whisper>=1.1; sys_platform != 'darwin'",
+    # Windows 上显卡推理要用的 NVIDIA 运行库
+    "nvidia-cublas-cu12; sys_platform == 'win32'",
+    "nvidia-cudnn-cu12>=9,<10; sys_platform == 'win32'",
+]
+
+[project.scripts]
+lecture-stt = "lecture_stt.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lecture_stt"]
