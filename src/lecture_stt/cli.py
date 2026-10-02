@@ -84,9 +84,9 @@ def cmd_scan(args: argparse.Namespace) -> None:
     root = Path(args.path).expanduser().resolve()
     store = Store()
     _register(store, root)
-    jobs = store.jobs_under(root)
+    jobs = store.jobs_under(root, include_audio=args.include_audio, exclude=tuple(args.exclude))
     if not jobs:
-        print("没有找到视频或音频文件。")
+        print("没有找到视频文件（音频要加 --include-audio）。")
         return
 
     by_folder = defaultdict(list)  # 按每门课的 _stt 文件夹分组
@@ -154,7 +154,9 @@ def cmd_run(args: argparse.Namespace) -> None:
         statuses = ["pending", "failed"] if args.retry_failed else ["pending"]
         if args.preview_minutes:
             statuses = None  # 试跑不看状态，也不改状态
-        jobs = store.jobs_under(root, statuses)
+        jobs = store.jobs_under(
+            root, statuses, include_audio=args.include_audio, exclude=tuple(args.exclude)
+        )
         if args.limit:
             jobs = jobs[: args.limit]
         if not jobs:
@@ -256,6 +258,8 @@ def main() -> None:
     scan = sub.add_parser("scan", help="扫描并预览：找到多少视频、总时长、预计用时")
     scan.add_argument("path", help="文件夹（会递归扫描）或单个视频文件")
     scan.add_argument("-v", "--verbose", action="store_true", help="按输出文件夹显示完整路径")
+    scan.add_argument("--include-audio", action="store_true", help="也包含纯音频（mp3、m4a 等）")
+    scan.add_argument("--exclude", action="append", default=[], metavar="TEXT", help="跳过路径中含此文字的文件，可重复")
     scan.set_defaults(func=cmd_scan)
 
     run = sub.add_parser("run", help="开始转写（已完成的自动跳过，可随时 Ctrl-C 中断）")
@@ -266,6 +270,8 @@ def main() -> None:
     run.add_argument("--language", default=DEFAULT_LANGUAGE, help="语言代码，auto 为自动识别（默认 en）")
     run.add_argument("--model", help="不填则按当前电脑自动选")
     run.add_argument("--retry-failed", action="store_true", help="把之前失败的也重跑")
+    run.add_argument("--include-audio", action="store_true", help="也转写纯音频（mp3、m4a 等），默认只转视频")
+    run.add_argument("--exclude", action="append", default=[], metavar="TEXT", help="跳过路径中含此文字的文件，可重复")
     run.add_argument("--no-timeout", action="store_true", help="不限制单个文件的用时（只用 CPU 跑时需要）")
     run.set_defaults(func=cmd_run)
 

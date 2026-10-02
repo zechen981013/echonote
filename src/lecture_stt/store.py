@@ -5,7 +5,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from .config import DATA_DIR
+from .config import AUDIO_EXTS, DATA_DIR
 from .scanner import MediaFile, natural_key
 from .transcriber import Transcript
 
@@ -68,12 +68,18 @@ class Store:
                     (media.course, str(media.output_path), row["id"]),
                 )
 
-    def jobs_under(self, root: Path, statuses: list[str] | None = None) -> list[sqlite3.Row]:
+    def jobs_under(
+        self, root: Path, statuses: list[str] | None = None, *,
+        include_audio: bool = False, exclude: tuple[str, ...] = (),
+    ) -> list[sqlite3.Row]:
+        """root 下的任务。默认不含纯音频；exclude 里的字符串出现在路径中的任务会被跳过。"""
         rows = self.db.execute("SELECT * FROM jobs").fetchall()
         rows = [
             r for r in rows
             if (statuses is None or r["status"] in statuses)
             and (Path(r["path"]) == root or Path(r["path"]).is_relative_to(root))
+            and (include_audio or Path(r["path"]).suffix.lower() not in AUDIO_EXTS)
+            and not any(x in r["path"] for x in exclude)
             and Path(r["path"]).exists()
         ]
         return sorted(rows, key=lambda r: natural_key(Path(r["path"])))

@@ -1,11 +1,10 @@
 import os
 from pathlib import Path
 
-# 认作“要转写”的文件：视频 + 纯音频
-MEDIA_EXTS = {
-    ".mp4", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".flv", ".webm",
-    ".mp3", ".m4a", ".wav", ".aac", ".flac",
-}
+# 认作“要转写”的文件：视频 + 纯音频（默认只转视频，音频要加 --include-audio）
+VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".flv", ".webm"}
+AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".aac", ".flac"}
+MEDIA_EXTS = VIDEO_EXTS | AUDIO_EXTS
 
 # 扫描时不进去的文件夹：全是依赖包或版本库，文件极多且不会有课程视频
 SKIP_DIRS = {".venv", "venv", "node_modules", ".git", "__pycache__"}
