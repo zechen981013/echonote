@@ -93,7 +93,7 @@ def cmd_scan(args: argparse.Namespace) -> None:
     for job in jobs:
         by_folder[_stt_dir(job)].append(job)
 
-    print(f"\n{'课程':<28}{'视频':>6}{'已完成':>8}{'时长':>12}")
+    print(f"\n{'主题':<28}{'视频':>6}{'已完成':>8}{'时长':>12}")
     for folder, items in by_folder.items():
         done = sum(j["status"] == "done" for j in items)
         total = sum(j["duration"] or 0 for j in items)
@@ -107,7 +107,7 @@ def cmd_scan(args: argparse.Namespace) -> None:
     speed = store.average_speed()
     if speed and remaining:
         print(f"按之前的平均速度（{speed:.1f} 倍实时）估算，还需约 {_hours(remaining / speed)}。")
-    print("转写稿会放在每门课文件夹下的 <课程>_stt/ 里。加 -v 可以看到具体路径。")
+    print("转写稿会放在每个主题文件夹下的 <主题>_stt/ 里。加 -v 可以看到具体路径。")
 
 
 def _time_limit(audio_seconds: float) -> float:
@@ -180,7 +180,7 @@ def cmd_run(args: argparse.Namespace) -> None:
                 # 每个文件单独开一个子进程来转写：
                 # 1. 跑完进程退出，内存彻底还给系统，不会一个个文件越积越多；
                 # 2. 卡住时可以从外面超时杀掉，换下一个，不会整批停在那里。
-                command = [sys.executable, "-m", "lecture_stt.cli", "_one", str(job["id"]),
+                command = [sys.executable, "-m", "echonote.cli", "_one", str(job["id"]),
                            "--language", args.language]
                 if args.model:
                     command += ["--model", args.model]
@@ -225,7 +225,7 @@ def cmd_status(args: argparse.Namespace) -> None:
     store = Store()
     jobs = store.all_jobs()
     if not jobs:
-        print("还没有登记任何文件。先运行 lecture-stt scan <文件夹>。")
+        print("还没有登记任何文件。先运行 echonote scan <文件夹>。")
         return
     for status, label in [("done", "已完成"), ("pending", "待转写"), ("failed", "失败"), ("running", "进行中")]:
         items = [j for j in jobs if j["status"] == status]
@@ -251,7 +251,7 @@ def main() -> None:
         stream.reconfigure(errors="replace")
 
     parser = argparse.ArgumentParser(
-        prog="lecture-stt", description="递归扫描文件夹里的课程视频，转写成 Markdown。"
+        prog="echonote", description="递归扫描文件夹里的长音视频，转写成 Markdown。"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 

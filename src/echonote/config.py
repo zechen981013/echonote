@@ -6,7 +6,7 @@ VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".m4v", ".wmv", ".flv", ".webm"}
 AUDIO_EXTS = {".mp3", ".m4a", ".wav", ".aac", ".flac"}
 MEDIA_EXTS = VIDEO_EXTS | AUDIO_EXTS
 
-# 扫描时不进去的文件夹：全是依赖包或版本库，文件极多且不会有课程视频
+# 扫描时不进去的文件夹：全是依赖包或版本库，文件极多且不会有长音视频
 SKIP_DIRS = {".venv", "venv", "node_modules", ".git", "__pycache__"}
 
 # 转写稿文件夹的后缀，例如 FINC3011_stt

@@ -1,3 +1,91 @@
 .venv/
 __pycache__/
 data/
+
+
+# ===== portfolio-secure baseline (managed) =====
+# --- secrets / credentials ---
+.env
+.env.*
+!.env.example
+*.env.bak*
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa*
+id_ed25519*
+credentials.json
+service-account*.json
+secrets.*
+*.secret
+
+# --- local / host-specific config containing api keys or public hosts ---
+config.local.*
+*.local
+deploy/.env
+deploy/hosts.local
+hosts.local
+*.private.*
+
+# --- python ---
+.venv/
+.venv310/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.uv/
+.ipynb_checkpoints/
+htmlcov/
+.coverage*
+
+# --- node / frontend build ---
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# --- java ---
+target/
+*.class
+
+# --- logs / runtime artifacts ---
+logs/
+*.log
+*.pid
+*.out
+
+# --- local databases / dumps ---
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+*.dump
+*.sql.gz
+
+# --- browser profiles / caches / downloaded binaries ---
+.chrome-*-profile/
+.chrome-profile/
+.cache/
+tmp/
+.tmp/
+
+# --- os / ide ---
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+# ===== end portfolio-secure baseline =====
+
+data/

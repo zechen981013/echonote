@@ -1,4 +1,4 @@
-"""递归扫描：找出文件夹里所有视频，并判断每个视频属于哪门课、转写稿该放哪。"""
+"""递归扫描：找出文件夹里所有视频，并判断每个视频属于哪个主题、转写稿该放哪。"""
 
 import os
 import re
@@ -8,11 +8,11 @@ from pathlib import Path
 
 from .config import MEDIA_EXTS, SKIP_DIRS, STT_SUFFIX
 
-# 课程代码：4 个字母 + 4 个数字，如 FINC3011。前后不能紧挨着字母/数字，
+# 目录编号：4 个字母 + 4 个数字，如 FINC3011。前后不能紧挨着字母/数字，
 # 否则 MATHMATICS1311 会被误认成 TICS1311。
 _COURSE_CODE = re.compile(r"(?<![A-Za-z])([A-Za-z]{4}\d{4})(?!\d)")
 
-# “通用”文件夹名：它们只是课程里的分类，本身不代表一门课
+# “通用”文件夹名：它们只是目录里的分类，本身不代表一个主题
 _GENERIC_DIR = re.compile(
     r"""^(
         .*\b(recordings?|lectures?|lec|tutorials?|tut|videos?|sessions?)  # 以这些词结尾
@@ -29,8 +29,8 @@ _DROP_IN_OUTPUT = {"recording", "recordings", "video", "videos"}
 @dataclass(frozen=True)
 class MediaFile:
     path: Path          # 视频原文件
-    course_dir: Path    # 课程文件夹
-    course: str         # 课程名，用于给 _stt 文件夹命名
+    course_dir: Path    # 主题文件夹
+    course: str         # 主题名，用于给 _stt 文件夹命名
     output_path: Path   # 转写稿 .md 的位置
 
 
@@ -57,11 +57,11 @@ def iter_media(root: Path) -> Iterator[Path]:
 
 
 def resolve_course(media: Path, root: Path) -> tuple[Path, str]:
-    """判断一个视频属于哪门课。返回（课程文件夹, 课程名）。
+    """判断一个视频属于哪个主题。返回（主题文件夹, 主题名）。
 
     规则：
-    1. 从视频所在文件夹往上到 root，名字里带课程代码的、最靠上的那一层就是课程；
-    2. 都没有课程代码时，从下往上跳过“通用”文件夹名，第一个不通用的就是课程。
+    1. 从视频所在文件夹往上到 root，名字里带目录编号的、最靠上的那一层就是主题；
+    2. 都没有目录编号时，从下往上跳过“通用”文件夹名，第一个不通用的就是主题。
     """
     if root.is_file():
         # 单个文件：往上找到用户主目录为止
@@ -74,7 +74,7 @@ def resolve_course(media: Path, root: Path) -> tuple[Path, str]:
         if folder == root:
             break
 
-    for folder in reversed(ancestors):  # 由上往下找课程代码
+    for folder in reversed(ancestors):  # 由上往下找目录编号
         match = _COURSE_CODE.search(folder.name)
         if match:
             return folder, match.group(1).upper()
@@ -94,7 +94,7 @@ def _output_path(media: Path, course_dir: Path, course: str, keep_all: bool) -> 
 
 
 def plan(root: Path) -> list[MediaFile]:
-    """扫描 root，给每个视频安排好课程和输出位置。"""
+    """扫描 root，给每个视频安排好主题和输出位置。"""
     files = []
     taken: set[Path] = set()
     for media in sorted(iter_media(root), key=natural_key):
